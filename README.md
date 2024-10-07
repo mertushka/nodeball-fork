@@ -22,7 +22,7 @@ $ npm run regionServer
 ### URL
 Visit [http://127.0.0.1:8091/](http://127.0.0.1:8091/) for test and play. 
 
-### Server Config
+### Server Config (Rename Config.example.ts to Config.ts)
 ```
 PORT: 8090,
 HTTP_PORT: 8091,
