@@ -1144,6 +1144,8 @@ export default class GameScene extends Scene {
     }
 
     keyDownHandler(e: any): void {
+        if(this.state.canvas == null || this.state.ctx == null || Application.currentUser == null || Application.currentUser.currentRoom == null || Application.currentUser.currentRoom.stadium == null)
+            return;
         const inputChat = document.getElementById("chatMsg");
         if(inputChat == null)
             return;
@@ -1197,6 +1199,10 @@ export default class GameScene extends Scene {
             this.state.inputs.kick = false;
         }
 
+        const server = Application.regionServerManager.getServerById(Application.currentUser.currentServer);
+        if(server != null)
+           server.sendMsg("inputs", this.state.inputs)
+
         if(Application.settingsManager.inputs.toggle_chat.includes(e.code)) {
             if((inputChat === document.activeElement))
                 setTimeout(() => this.state.canvas.focus(), 1);
@@ -1207,6 +1213,8 @@ export default class GameScene extends Scene {
     }
 
     KeyUpHandler(e: any): void {
+        if(this.state.canvas == null || this.state.ctx == null || Application.currentUser == null || Application.currentUser.currentRoom == null || Application.currentUser.currentRoom.stadium == null)
+            return;
         if(Application.settingsManager.inputs.right.includes(e.code))
             this.state.inputs.right = false;
 
@@ -1221,6 +1229,10 @@ export default class GameScene extends Scene {
 
         if(Application.settingsManager.inputs.kick.includes(e.code))
             this.state.inputs.kick = false;
+
+        const server = Application.regionServerManager.getServerById(Application.currentUser.currentServer);
+        if(server != null)
+           server.sendMsg("inputs", this.state.inputs)
     }
 
     onDestroy(): void {
@@ -1447,10 +1459,6 @@ export default class GameScene extends Scene {
             return;
         }
 
-        const server = Application.regionServerManager.getServerById(Application.currentUser.currentServer);
-        if(server != null)
-           server.sendMsg("inputs", this.state.inputs)
-
         this.resize_canvas();
         this.renderNotif(dt);
 
@@ -1494,7 +1502,7 @@ export default class GameScene extends Scene {
         });
 
         const now = performance.now();
-        const renderTimestamp = now - (1000.0 / Config.SERVER_UPDATE_INTERVAL);
+        const renderTimestamp = now - (0.016666666666666666) + (Application?.currentUser?.currentRoom?.getPlayer(Application?.currentUser?.id)?.ping || 0);
 
         Application.currentUser.currentRoom.stadium.discs.forEach((disc: any, i: any) => {
             const buffer = Application.currentUser?.currentRoom?.discHistory[i];

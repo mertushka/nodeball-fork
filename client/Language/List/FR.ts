@@ -8,7 +8,7 @@ export const FR: Record<string, string> = {
     LOADING_FETCHING_REGION_SERVERS: "Récupération des serveurs de région...",
 
     // GENERIC_ERROR
-    GENERIC_ERROR_CONNECTION_LOSTED: "Connexion au serveur perdue.",
+    GENERIC_ERROR_CONNECTION_LOST: "Connexion au serveur perdue.",
     GENERIC_ERROR_SERVERS: "Une erreur s'est produite avec les serveurs.",
     GENERIC_ERROR_NO_SERVER_AVAILABLE: "Il n'y a aucun serveur disponible.",
     

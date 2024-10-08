@@ -14,6 +14,7 @@ import Config from "../Config/Config";
 import Goal from "../../shared/Goal/Goal";
 import { getLevel } from "../../shared/Level/Level";
 import { getElo } from "../../shared/Elo/Elo";
+import pako from "pako";
 
 export default class Client implements ClientInterface {
     id: string;
@@ -39,7 +40,9 @@ export default class Client implements ClientInterface {
             if(data == null)
                 return;
 
-            const message = JSON.parse(data.toString());
+            const decompressedData = pako.inflate(data, {to: "string"})
+
+            const message = JSON.parse(decompressedData.toString());
 
             switch(message.key) {
                 case "tryLogin": {
@@ -656,7 +659,8 @@ export default class Client implements ClientInterface {
 
     sendMsg(key: string, value: any = null): void {
         const message = JSON.stringify({key: key, value: value});
-        this.socket.send(message);
+        const compressedMessage = pako.deflate(message);
+        this.socket.send(compressedMessage);
     }
 
     destroy(): void {

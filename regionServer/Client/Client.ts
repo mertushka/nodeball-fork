@@ -2,6 +2,7 @@ import { WebSocket, WebSocketServer } from "ws";
 import ClientInterface from "./ClientInterface";
 import Server from "../main";
 import Player from "../Player/Player";
+import pako from "pako";
 
 export default class Client implements ClientInterface {
     id: string;
@@ -21,7 +22,9 @@ export default class Client implements ClientInterface {
             if(data == null)
                 return;
 
-            const message = JSON.parse(data.toString());
+            const decompressedData = pako.inflate(data, {to: "string"})
+
+            const message = JSON.parse(decompressedData.toString());
 
             switch(message.key) {
                 case "ping": {
@@ -94,7 +97,8 @@ export default class Client implements ClientInterface {
 
     sendMsg(key: string, value: any): void {
         const message = JSON.stringify({key: key, value: value});
-        this.socket.send(message);
+        const compressedMessage = pako.deflate(message);
+        this.socket.send(compressedMessage);
     }
 
     destroy(): void {

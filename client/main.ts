@@ -24,7 +24,7 @@ class App {
     currentUser: null | User;
     lastCall: number;
     elapsed: number;
-    elpasedThen: number;
+    elapsedThen: number; // Fixed typo here
 
     constructor() {
         this.logger = new Logger();
@@ -36,8 +36,8 @@ class App {
         this.settingsManager = new SettingsManager();
         this.currentUser = null;
         this.lastCall = performance.now();
-        this.elapsed = performance.now();
-        this.elpasedThen = performance.now();
+        this.elapsed = 0; // Initialize elapsed to 0
+        this.elapsedThen = performance.now(); // Corrected variable name
 
         window.requestAnimationFrame(this.update.bind(this));
     }
@@ -58,7 +58,7 @@ class App {
 
     update() {
         const now = performance.now();
-        this.elapsed = now - this.elpasedThen;
+        this.elapsed = now - this.elapsedThen;
 
         if(this.settingsManager.graphics.fps != 0 && this.elapsed < (1000/this.settingsManager.graphics.fps))
         {
@@ -67,7 +67,7 @@ class App {
         }
 
         if(this.settingsManager.graphics.fps != 0)
-            this.elpasedThen = now - (this.elapsed % (1000/this.settingsManager.graphics.fps));
+            this.elapsedThen = now - (this.elapsed % (1000/this.settingsManager.graphics.fps));
 
         const delta = (now - this.lastCall)/1000;
         this.lastCall = now;

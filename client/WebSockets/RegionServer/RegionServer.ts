@@ -1,3 +1,4 @@
+import pako from "pako";
 import { RoomState } from "../../../shared/RoomState/RoomState";
 import Room from "../../Room/Room";
 import GameScene from "../../Scene/List/GameScene";
@@ -50,7 +51,26 @@ export default class RegionServer implements RegionServerInterface {
                 if(msg == null || msg.data == null)
                     return;
 
-                const message = JSON.parse(msg.data.toString());
+                if(msg.data instanceof Blob) {
+                    const reader = new FileReader();
+    
+                    reader.onload = (event) => {
+                        const arrayBuffer = event?.target?.result as ArrayBuffer;
+                
+                        // Decompress the ArrayBuffer using Pako
+                         processMessage(pako.inflate(new Uint8Array(arrayBuffer), { to: 'string' }));
+                    };
+                    
+                    reader.readAsArrayBuffer(msg.data);
+                } else {
+                    processMessage(pako.inflate(msg.data, {to: "string"}))
+                }
+
+            };
+
+            const processMessage = (msg: any) => {
+
+                const message = JSON.parse(msg.toString());
                 switch(message.key) {
                     case "pong": {
                         instance.clientId = message.value.clientId;
@@ -235,7 +255,7 @@ export default class RegionServer implements RegionServerInterface {
                         break;
                     }
                 }
-            };
+            }
         })
     }
 
@@ -253,7 +273,8 @@ export default class RegionServer implements RegionServerInterface {
             return Application.logger.sendLog("ERROR", "Impossible to send message to region server, websockets are disconnect.");
 
         const message = JSON.stringify({key: key, value: value});
-        this.ws.send(message);
+        const compressedMessage = pako.deflate(message);
+        this.ws.send(compressedMessage);
     }
 
     destroy(): void {}

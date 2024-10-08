@@ -1,6 +1,7 @@
 import { WebSocket } from "ws";
 import Config from "../Config/Config";
 import Server from "../main";
+import pako from "pako";
 
 export default class MainServer {
     socket: null | WebSocket;
@@ -20,11 +21,13 @@ export default class MainServer {
             Server.logger.sendLog("SUCCESS", `Connected to main server.`)
         }
 
-        this.socket.onmessage = function(message) {
+        this.socket.onmessage = function(message: any) {
             if(message == null || message.data == null)
                 return;
 
-            const msg = JSON.parse(message.data.toString());
+            const decompressedData = pako.inflate(message.data, {to: "string"})
+
+            const msg = JSON.parse(decompressedData.toString());
 
             switch(msg.key) {
                 case "tryLogin": {
@@ -93,7 +96,7 @@ export default class MainServer {
         this.socket.onerror = function(e) {}
 
         this.socket.onclose = function(e) {
-            Server.logger.sendLog("ERROR", `Connection to main server losted (${e.reason}), trying to reconnect...`)
+            Server.logger.sendLog("ERROR", `Connection to main server lost (${e.reason}), trying to reconnect...`)
             Server.playerManager.destroyAllPlayers();
 
             setTimeout(function() {
@@ -107,6 +110,7 @@ export default class MainServer {
             return;
 
         const message = JSON.stringify({key: key, value: value});
-        this.socket.send(message);
+        const compressedMessage = pako.deflate(message);
+        this.socket.send(compressedMessage);
     }
 }

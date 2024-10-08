@@ -772,149 +772,159 @@ export default class Room implements RoomInterface {
         this.broadcast("pickMode", player ? player.id : null);
     }
 
-    update(dt: number, time: number) {
-        if(this.state != RoomState.GAME_ENDED) {
-            let scoreIndex = 0;
-
-            for (let i = 0; i < this.stadium.discs.length; i++) {
-                const disc = this.stadium.discs[i];
-
-                if ((disc.cGroup & 128) != 0) {
-                    this.scorableDiscsId[scoreIndex] = i;
-                    this.scorableDiscsPos[scoreIndex][0] = disc.x;
-                    this.scorableDiscsPos[scoreIndex][1] = disc.y;
-                    scoreIndex++;
-                }
-            }
-
-            if(![RoomState.PAUSE, RoomState.UNPAUSE].includes(this.state))
-            {
-                this.currentPlayers.filter((p) => p.team !== 0).forEach((p, i) => {
-                    this.resolvePlayerMovement(p);
-                });
-
-                this.stadium.discs.forEach((d:any) => {
-                    d.x += d.xspeed * dt;
-                    d.y += d.yspeed * dt;
-                    d.xspeed *= d.damping;
-                    d.yspeed *= d.damping;
-                });
-            }
-
-            this.stadium.discs.forEach((d_a: any, i_a : number) => {
-                this.stadium.discs.filter((_: any, i: number) => i > i_a).forEach((d_b: any) => {
-                    if((d_a.cGroup & d_b.cMask) !== 0 && (d_a.cMask & d_b.cGroup) !== 0)
-                        resolveDDCollision(d_a, d_b);
-                });
-
-
-                if(d_a.invMass !== 0) {
-                    this.stadium.planes.forEach((p: any) => {
-                        if((d_a.cGroup & p.cMask) !== 0 && (d_a.cMask & p.cGroup) !== 0)
-                            resolveDPCollision(d_a, p);
-                    });
-
-                    this.stadium.segments.forEach((s: any) => {
-                        if((d_a.cGroup & s.cMask) !== 0 && (d_a.cMask & s.cGroup) !== 0)
-                            resolveDSCollision(d_a, s);
-                    });
-
-                    this.stadium.vertexes.forEach((v: any) => {
-                        if((d_a.cGroup & v.cMask) !== 0 && (d_a.cMask & v.cGroup) !== 0)
-                            resolveDVCollision(d_a, v);
-                    });
-                }
-            });
-
-            switch(this.state) {
-                case RoomState.UNPAUSE: {
-                    this.pauseTimeout -= (time * 1000);
-
-                    if(this.pauseTimeout <= 0)
-                        this.state = this.lastState
-
-                    break;
-                }
-
-                case RoomState.KICK_OFF_RESET: {
-                    for (let i = 0; i < this.stadium.discs.length; i++) {
-                        const disc = this.stadium.discs[i];
-
-                        if(disc.x != null) 
-                            disc.cMask = 39 | this.kickoffReset;
-                    }
-
-                    const ball = this.stadium.discs[0];
-                    if (ball.xspeed * ball.xspeed + ball.yspeed * ball.yspeed > 0)
-                        this.state = RoomState.PLAY;
-
-                    break;
-                }
-
-                case RoomState.PLAY: {
-                    this.score.time += time;
-
-                    for (let i = 0; i < this.stadium.discs.length; i++) {
-                        const disc = this.stadium.discs[i];
-                        if(disc.x != null) 
-                            disc.cMask = 39;
-                    }
-
-                    this.onTick();
-
-                    let scoreTeam = Team.SPECTATORS;;
-                    for (let i = 0; i < scoreIndex; i++) {
-                        scoreTeam = this.checkGoal([this.stadium.discs[this.scorableDiscsId[i]].x, this.stadium.discs[this.scorableDiscsId[i]].y], this.scorableDiscsPos[i]);
-
-                        if(scoreTeam != Team.SPECTATORS) 
-                            break;
-                    }
-
-                    if(scoreTeam != Team.SPECTATORS) {
-                        this.goalTimeout = 3000;
-                        this.state = RoomState.GOAL_SCORE;
-
-                        if(scoreTeam.id == Team.BLUE.id) {
-                            this.score.red++;
-                            this.onGoal(Team.RED);
-                        }
-                        else {
-                            this.score.blue++;
-                            this.onGoal(Team.BLUE);
-                        }
-                        
-                        if(
-                            !((this.score.scoreLimit > 0 && (this.score.red >= this.score.scoreLimit || this.score.blue >= this.score.scoreLimit)) ||
-                            (this.score.timeLimit > 0 && this.score.time >= 60 * this.score.timeLimit && this.score.red != this.score.blue))
-                        ) {
-                            this.kickoffReset = scoreTeam.id * 8;
-                        }
-                    } else {
-                        if(this.score.timeLimit > 0 && this.score.time >= 60 * this.score.timeLimit && this.score.red != this.score.blue)
-                            this.stopGame(true);
-                    }
-
-                    break;
-                }
-
-                case RoomState.GOAL_SCORE: {
-                    this.goalTimeout -= (time * 1000);
-                    if(0 >= this.goalTimeout) {
-                        if (
-                            (this.score.scoreLimit > 0 && (this.score.red >= this.score.scoreLimit || this.score.blue >= this.score.scoreLimit)) ||
-                            (this.score.timeLimit > 0 && this.score.time >= 60 * this.score.timeLimit && this.score.red != this.score.blue)
-                        ) {
-                            this.stopGame(true);
-                        } else
-                            this.resetPositionDiscs();
-                    }
-                    break;
-                }
+    update(dt: number, time: number): void {
+        if (this.state === RoomState.GAME_ENDED) return; // Early return if game has ended
+    
+        let scoreIndex = 0;
+    
+        // Identify scorable discs
+        for (let i = 0; i < this.stadium.discs.length; i++) {
+            const disc = this.stadium.discs[i];
+            if (disc.cGroup & 128) {
+                this.scorableDiscsId[scoreIndex] = i;
+                this.scorableDiscsPos[scoreIndex] = [disc.x, disc.y]; // Avoid using two array accesses
+                scoreIndex++;
             }
         }
-
+    
+        // Update players and discs if not paused
+        if (![RoomState.PAUSE, RoomState.UNPAUSE].includes(this.state)) {
+            this.currentPlayers.filter((p) => p.team !== 0).forEach((player) => {
+                this.resolvePlayerMovement(player);
+            });
+    
+            for (const disc of this.stadium.discs) {
+                disc.x += disc.xspeed * 60*dt;
+                disc.y += disc.yspeed * 60*dt;
+                disc.xspeed *= disc.damping;
+                disc.yspeed *= disc.damping;
+            }
+        }
+    
+        // Resolve collisions
+        for (let i_a = 0; i_a < this.stadium.discs.length; i_a++) {
+            const d_a = this.stadium.discs[i_a];
+            for (let i_b = i_a + 1; i_b < this.stadium.discs.length; i_b++) {
+                const d_b = this.stadium.discs[i_b];
+                if ((d_a.cGroup & d_b.cMask) !== 0 && (d_a.cMask & d_b.cGroup) !== 0) {
+                    resolveDDCollision(d_a, d_b);
+                }
+            }
+    
+            if (d_a.invMass !== 0) {
+                this.resolveDiscCollisions(d_a);
+            }
+        }
+    
+        // State management
+        this.handleGameState(time);
+        
         this.broadcast("worldState", this.getWorldState());
     }
+    
+    // New method to handle disc collisions
+    private resolveDiscCollisions(disc: any): void {
+        for (const plane of this.stadium.planes) {
+            if ((disc.cGroup & plane.cMask) !== 0 && (disc.cMask & plane.cGroup) !== 0) {
+                resolveDPCollision(disc, plane);
+            }
+        }
+    
+        for (const segment of this.stadium.segments) {
+            if ((disc.cGroup & segment.cMask) !== 0 && (disc.cMask & segment.cGroup) !== 0) {
+                resolveDSCollision(disc, segment);
+            }
+        }
+    
+        for (const vertex of this.stadium.vertexes) {
+            if ((disc.cGroup & vertex.cMask) !== 0 && (disc.cMask & vertex.cGroup) !== 0) {
+                resolveDVCollision(disc, vertex);
+            }
+        }
+    }
+    
+    // New method to handle game states
+    private handleGameState(time: number): void {
+        switch (this.state) {
+            case RoomState.UNPAUSE:
+                this.pauseTimeout -= (time * 1000);
+                if (this.pauseTimeout <= 0) this.state = this.lastState;
+                break;
+    
+            case RoomState.KICK_OFF_RESET:
+                this.stadium.discs.forEach((disc: any) => {
+                    if (disc.x != null) disc.cMask = 39 | this.kickoffReset;
+                });
+    
+                const ball = this.stadium.discs[0];
+                if (ball.xspeed ** 2 + ball.yspeed ** 2 > 0) this.state = RoomState.PLAY;
+                break;
+    
+            case RoomState.PLAY:
+                this.score.time += time;
+                this.stadium.discs.forEach((disc: any) => {
+                    if (disc.x != null) disc.cMask = 39;
+                });
+    
+                this.onTick();
+                this.checkGoalAndUpdateScore();
+                break;
+    
+            case RoomState.GOAL_SCORE:
+                this.goalTimeout -= (time * 1000);
+                if (this.goalTimeout <= 0) {
+                    if (this.isGameEnded()) {
+                        this.stopGame(true);
+                    } else {
+                        this.resetPositionDiscs();
+                    }
+                }
+                break;
+        }
+    }
+    
+    // Method to check goals and update score
+    private checkGoalAndUpdateScore(): void {
+        let scoreTeam = Team.SPECTATORS;
+    
+        for (let i = 0; i < this.scorableDiscsId.length; i++) {
+            const disc = this.stadium.discs[this.scorableDiscsId[i]];
+            scoreTeam = this.checkGoal([disc.x, disc.y], this.scorableDiscsPos[i]);
+            if (scoreTeam !== Team.SPECTATORS) break;
+        }
+    
+        if (scoreTeam !== Team.SPECTATORS) {
+            this.goalTimeout = 3000;
+            this.state = RoomState.GOAL_SCORE;
+            this.updateScore(scoreTeam);
+        } else {
+            if (this.isGameEnded()) this.stopGame(true);
+        }
+    }
+    
+    // Method to update the score
+    private updateScore(scoreTeam: any): void {
+        if (scoreTeam.id === Team.BLUE.id) {
+            this.score.red++;
+            this.onGoal(Team.RED);
+        } else {
+            this.score.blue++;
+            this.onGoal(Team.BLUE);
+        }
+    
+        if (!this.isGameEnded()) {
+            this.kickoffReset = scoreTeam.id * 8;
+        }
+    }
+    
+    // Method to determine if the game should end
+    private isGameEnded(): boolean {
+        return (
+            (this.score.scoreLimit > 0 && (this.score.red >= this.score.scoreLimit || this.score.blue >= this.score.scoreLimit)) ||
+            (this.score.timeLimit > 0 && this.score.time >= 60 * this.score.timeLimit && this.score.red !== this.score.blue)
+        );
+    }
+    
 
     getWorldState(): any {
         return {
@@ -1029,97 +1039,100 @@ export default class Room implements RoomInterface {
     resolvePlayerMovement(player: RoomPlayer) {
         if (player.disc != null) {
             var playerDisc = player.disc;
-
+    
+            // Handle shooting
             if (player.inputs.kick) {
                 player.shooting = true;
             } else {
                 player.shooting = false;
                 player.shotReset = false;
             }
+    
+            // Handle kicking the disc
             if (this.checkKick(player)) {
                 let check = false;
-                player.disc.kick = true;
-
-                this.stadium.discs.forEach((d:any) => {
+                playerDisc.kick = true;
+    
+                this.stadium.discs.forEach((d: any) => {
                     if ((d.cGroup & Base.collisionFlags.kick) !== 0 && d != playerDisc) {
-                        var discPos = { x: d.x, y: d.y };
-                        var playerPos = { x: playerDisc.x, y: playerDisc.y };
-                        var physics = Base.playerPhysics;
-                        var dist_x = discPos.x - playerPos.x;
-                        var dist_y = discPos.y - playerPos.y;
-                        var dist = Math.sqrt(dist_x ** 2 + dist_y ** 2);
+                        const dist_x = d.x - playerDisc.x;
+                        const dist_y = d.y - playerDisc.y;
+                        const dist = Math.sqrt(dist_x ** 2 + dist_y ** 2);
+    
+                        // Check for close proximity before kicking
                         if (dist - playerDisc.radius - d.radius < 4) {
-                            dist_x = dist_x / dist;
-                            dist_y = dist_y / dist;
-                            var kStr = physics.kickStrength;
-                            d.xspeed = d.xspeed + dist_x * kStr;
-                            d.yspeed = d.yspeed + dist_y * kStr;
-
+                            const normalizedDist_x = dist_x / dist;
+                            const normalizedDist_y = dist_y / dist;
+                            const kStr = Base.playerPhysics.kickStrength;
+    
+                            d.xspeed += normalizedDist_x * kStr;
+                            d.yspeed += normalizedDist_y * kStr;
+    
                             check = true;
                         }
                     }
                 });
-
-                if(check) {
+    
+                if (check) {
                     player.shotReset = true;
-
-                    if(this.stadium.goals != null && this.stadium.goals.length >= 2) {
-                        const shotOnTarget = lineToLine({
-                            x1: player.disc.x,
-                            y1: player.disc.y,
-                            x2: this.stadium.discs[0].x,
-                            y2: this.stadium.discs[0].y
-                        }, 
-                        {
-                            x1: player.team == Team.RED ? this.stadium.goals[1].p1[0] : this.stadium.goals[0].p0[0],
-                            y1: player.team == Team.RED ? this.stadium.goals[1].p1[1] : this.stadium.goals[0].p0[1], 
-                            x2: player.team == Team.RED ? this.stadium.goals[1].p0[0] : this.stadium.goals[0].p1[0],
-                            y2: player.team == Team.RED ? this.stadium.goals[1].p0[1] : this.stadium.goals[0].p1[1], 
-                        }, 
-                        true);
-
-                        if(shotOnTarget) {
-                            player.shots++;
-                            this.isShot = true;
-                            this.addHistory("shot", {time: this.score.time, username: player.username, team: player.team});
-                        }
-                    }
-
+                    this.handleShotOnTarget(player);
                     player.team == Team.RED ? this.possession[0]++ : this.possession[1]++;
                     this.lastPlayerKick = player;
                     this.setLastPlayerTouchBall(player);
-
-                    if(playerDisc.cMask !== 39) 
-                        playerDisc.cMask = 39;
-
+    
+                    // Set collision mask for the disc
+                    if (playerDisc.cMask !== 39) playerDisc.cMask = 39;
+    
                     this.broadcast("sound", "kick");
                 }
+            } else {
+                playerDisc.kick = false;
             }
-            else
-                player.disc.kick = false;
-
+    
+            // Determine movement direction
             var direction = [0, 0];
             if (player.inputs.up) direction[1]--;
             if (player.inputs.left) direction[0]--;
             if (player.inputs.down) direction[1]++;
             if (player.inputs.right) direction[0]++;
     
-            direction = normalise(direction);
+            // Normalize the direction vector to ensure consistent movement speed
+            const norm = Math.sqrt(direction[0] ** 2 + direction[1] ** 2);
+            if (norm > 0) {
+                direction[0] /= norm; // Normalize x
+                direction[1] /= norm; // Normalize y
+            }
     
-            playerDisc.xspeed =
-                playerDisc.xspeed +
-                direction[0] *
-                    (this.checkKick(player)
-                        ? playerDisc.kickingAcceleration
-                        : playerDisc.acceleration);
-            playerDisc.yspeed =
-                playerDisc.yspeed +
-                direction[1] *
-                    (this.checkKick(player)
-                        ? playerDisc.kickingAcceleration
-                        : playerDisc.acceleration);
+            // Apply acceleration based on whether the player is kicking
+            const acceleration = this.checkKick(player) ? playerDisc.kickingAcceleration : playerDisc.acceleration;
+    
+            playerDisc.xspeed += direction[0] * acceleration;
+            playerDisc.yspeed += direction[1] * acceleration;
         }
     }
+    
+    handleShotOnTarget(player: RoomPlayer) {
+        if (this.stadium.goals != null && this.stadium.goals.length >= 2) {
+            const shotOnTarget = lineToLine({
+                x1: player?.disc?.x,
+                y1: player?.disc?.y,
+                x2: this.stadium.discs[0].x,
+                y2: this.stadium.discs[0].y
+            }, {
+                x1: player.team == Team.RED ? this.stadium.goals[1].p1[0] : this.stadium.goals[0].p0[0],
+                y1: player.team == Team.RED ? this.stadium.goals[1].p1[1] : this.stadium.goals[0].p0[1],
+                x2: player.team == Team.RED ? this.stadium.goals[1].p0[0] : this.stadium.goals[0].p1[0],
+                y2: player.team == Team.RED ? this.stadium.goals[1].p0[1] : this.stadium.goals[0].p1[1],
+            }, true);
+    
+            if (shotOnTarget) {
+                player.shots++;
+                this.isShot = true;
+                this.addHistory("shot", { time: this.score.time, username: player.username, team: player.team });
+            }
+        }
+    }
+    
 
     resetScorableDiscsId(){
         let a: any[] = [];

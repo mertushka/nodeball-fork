@@ -19,7 +19,7 @@ export default class RegionServer implements RegionServerInterface {
         for(let i in Server.playerManager.players) {
             const player = Server.playerManager.players[i];
             if(player.regionPlayer != null && player.regionPlayer.region == this.id)
-                player.destroy("GENERIC_ERROR_CONNECTION_LOSTED");
+                player.destroy("GENERIC_ERROR_CONNECTION_LOST");
         }
     }
 }

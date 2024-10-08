@@ -1,3 +1,4 @@
+import pako from "pako";
 import Config from "../Config/Config";
 import GameScene from "../Scene/List/GameScene";
 import { SceneList } from "../Scene/SceneList";
@@ -22,9 +23,9 @@ export default class WebsocketManager {
             this.ws = new WebSocket(`ws://${Config.SERVER_HOST}:${Config.SERVER_PORT}`);
     
             this.ws.onclose = () => {
-                Application.logger.sendLog("ERROR", "Connection to server losted.");
+                Application.logger.sendLog("ERROR", "Connection to server lost.");
                 Application.sceneManager.initScene(SceneList.MessageScene, {
-                    message: Application.languageManager.getValueForKey('GENERIC_ERROR_CONNECTION_LOSTED')
+                    message: Application.languageManager.getValueForKey('GENERIC_ERROR_CONNECTION_LOST')
                 });
             }
     
@@ -37,11 +38,31 @@ export default class WebsocketManager {
                 });
             }
 
+
             this.ws.onmessage = (msg: any) => {
                 if(msg == null || msg.data == null)
                     return;
 
-                const message = JSON.parse(msg.data.toString());
+
+                if(msg.data instanceof Blob) {
+                    const reader = new FileReader();
+    
+                    reader.onload = (event) => {
+                        const arrayBuffer = event?.target?.result as ArrayBuffer;
+                
+                        // Decompress the ArrayBuffer using Pako
+                         processMessage(pako.inflate(new Uint8Array(arrayBuffer), { to: 'string' }));
+                    };
+                    
+                    reader.readAsArrayBuffer(msg.data);
+                } else {
+                    processMessage(pako.inflate(msg.data, {to: "string"}))
+                }
+            }
+            
+
+            const processMessage = (msg: any) => {
+                const message = JSON.parse(msg.toString());
                 switch(message.key) {
                     case "getAllServers": {
                         message.value.forEach((server: any) => Application.regionServerManager.initServer(server));
@@ -214,7 +235,7 @@ export default class WebsocketManager {
                         break;
                     }
                 }
-            }
+                }
         });
     }
 
@@ -223,6 +244,7 @@ export default class WebsocketManager {
             return Application.logger.sendLog("ERROR", "Impossible to send message to server, websockets are disconnect.");
 
         const message = JSON.stringify({key: key, value: value});
-        this.ws.send(message);
+        const compressedMessage = pako.deflate(message);
+        this.ws.send(compressedMessage);
     }
 }
